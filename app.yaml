@@ -1,0 +1,25 @@
+runtime: python27
+api_version: 1
+threadsafe: true
+
+handlers:
+- url: /static
+  static_dir: static
+  
+- url: /hello_world.*
+  script: hello_world.main.app
+- url: /text_encrypt.*
+  script: text_encrypt.main.app
+- url: /user_reg.*
+  script: user_reg.main.app
+- url: /workingwithtemplates.*
+  script: workingwithtemplates.main.app
+- url: /basicblog.*
+  script: basicblog.main.app
+
+- url: /.*
+  script: not_found.app
+
+libraries:
+- name: jinja2
+  version: latest

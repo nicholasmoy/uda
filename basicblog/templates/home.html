@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Previous Blog Posts</h2>
+
+{% for blogPost in blogPosts %}
+<div class="post">
+  <div class="post-heading">
+    <div> <a href="/basicblog/{{ blogPost.key().id()|string }}" class="post-title">{{blogPost.title}}</a> </div>
+    <div class="post-time"> Post Submitted On {{blogPost.createdtime}} </div>
+  </div>
+  <div class="post-content">{{blogPost.post}} </div>
+  
+</div>
+{% endfor %}
+
+
+<h2 style="color:#FF0000"; margin:0 height:50px>{{successmessage}}</h2>
+
+
+{% endblock %}
