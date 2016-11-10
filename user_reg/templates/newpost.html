@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Submit a New Blog Post</h2>
+<form method="post" action="/basicblog/newpost">
+  <table>
+    <tr>
+      <td class="label">Subject:</td>
+      <td> 
+        <input type="text" name="subject" value="{{title}}">
+      </td>
+      <td class="error">{{title_error}}</td>
+    </tr>
+    <tr>
+      <td class="label">Contents:</td>
+      <td> 
+        <textarea name="content">{{post}}</textarea>
+      </td>
+      <td class="error">{{post_error}}</td>
+    </tr>
+  </table>
+  <input type="submit">
+</form>
+<br>
+<h2 style="color:#FF0000"; margin:0 height:50px>{{successmessage}}</h2>
+
+{% endblock %}
