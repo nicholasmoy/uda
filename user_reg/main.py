@@ -137,7 +137,7 @@ class MainPage(Handler):
         cookieHash=makehash(userID,SECRET)
 
         self.response.set_cookie(
-          key="userID",
+          key="user_ID",
           value="{}|{}".format(userID,cookieHash[0]),
           path="/",
           expires=datetime.now()+timedelta(weeks=4))
@@ -162,7 +162,7 @@ class WelcomeHandler(Handler):
 
   def get(self):
     # logging.info("welcome page!!")
-    ID_cookie=self.request.cookies.get('userID').split('|')
+    ID_cookie=self.request.cookies.get('user_ID').split('|')
     logging.info(ID_cookie)
     cookie_userid=ID_cookie[0]
     cookie_hash=ID_cookie[1]
@@ -180,5 +180,6 @@ class WelcomeHandler(Handler):
 
 app = webapp2.WSGIApplication([
   ('/user_reg.?', MainPage),
+  ('/user_reg/signup', MainPage),
   ('/user_reg/welcome.*',WelcomeHandler)
 ], debug=True)
