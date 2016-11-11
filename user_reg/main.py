@@ -70,8 +70,8 @@ def makesalt(n=5):
 def makehash(s, salt):
   return hmac.new(salt,s,hashlib.sha256).hexdigest(),salt
 
-def checkhash(hash,s, salt=""):
-  return hmac.new(salt, s, hashlib.sha256).hexdigest()==hash
+def checkhash(hash, s, salt=""):
+  return hmac.new(str(salt), str(s), hashlib.sha256).hexdigest()==str(hash)
 
 
 # --------------------Handlers-----------------------#
@@ -88,8 +88,43 @@ class Handler(webapp2.RequestHandler):
   def render(self,template,**kw):
     self.write(self.render_str(template,**kw))
 
+  def collect_input(self):
+    input_orig=[]
+    for i in range(0,len(formelements)):
+      input_orig.append(self.request.get(formelements[i]))
+    for i in range(0,len(input_orig)):
+      input_orig[i]=escape_html(input_orig[i])
+
+    return zip(formelements,input_orig)
+
+  def makeusercookie(self,curr_user):
+      userID=str(curr_user.key().id())
+      cookieHash=makehash(userID,SECRET)
+      self.response.set_cookie(
+        key="user_ID",
+        value="{}|{}".format(userID,cookieHash[0]),
+        path="/")
+      #self.response.headers.add_header('Set-Cookie','user_ID={}|{}; Path=/'.format(userID,cookieHash[0]))
+
+  def initialize(self,*a,**kw):
+    webapp2.RequestHandler.initialize(self,*a,**kw)
+    cookie=self.request.cookies.get('user_ID')
+    
+    if cookie and str(cookie[0])<>'':
+      cookie=cookie.split('|')
+      if checkhash(cookie[1],cookie[0],SECRET):
+        self.user=User.get_by_id(int(cookie[0]))
+      else:
+        self.user=None
+    else:
+        self.user=None
+         
 
 class MainPage(Handler):
+  def get(self):
+    self.render('home.html',user=self.user)
+
+class Register(Handler):
     
   def input_validate (self, **kw):
     passmatch=kw['password']==kw['verify']
@@ -101,24 +136,13 @@ class MainPage(Handler):
 
     return zip(errorhandles,(USER_RE.match(kw['username']),PASS_RE.match(kw['password']),passmatch,emailgood))
 
-  def write_form (self, dictionary= None):
-    if not dictionary: dictionary= defaultdict(lambda:"",{("","")})
-    self.response.out.write(form % dictionary)
-  
   def get(self):
     self.render('form_signup.html')
 
   def post(self):
-    input_orig=[]
-
-    for i in range(0,len(formelements)):
-      input_orig.append(self.request.get(formelements[i]))
-
-    for i in range(0,len(input_orig)):
-      input_orig[i]=escape_html(input_orig[i])
-    
-    formset=zip(formelements,input_orig)
+    formset=self.collect_input()
     formset_lookup=dict(formset)
+
     validation_response=self.input_validate(**formset_lookup)
     errorlist=[]
 
@@ -133,15 +157,8 @@ class MainPage(Handler):
         hashresult=makehash(username+password,makesalt())
         curr_user=User(username=username,passhash="{}|{}".format(hashresult[0],hashresult[1]))
         curr_user.put()
-        userID=str(curr_user.key().id())
-        cookieHash=makehash(userID,SECRET)
 
-        self.response.set_cookie(
-          key="user_ID",
-          value="{}|{}".format(userID,cookieHash[0]),
-          path="/",
-          expires=datetime.now()+timedelta(weeks=4))
-        
+        self.makeusercookie(curr_user)        
         self.redirect("/user_reg/welcome")
       
       else:
@@ -158,28 +175,76 @@ class MainPage(Handler):
       
     self.render('form_signup.html',**output_dict)
 
+class Login(Handler):
+    
+  def input_validate (self, **kw):
+    return [("user_error",USER_RE.match(kw['username'])),
+      ("pass_error",PASS_RE.match(kw['password']))]
+
+  def get(self):
+    self.render('form_login.html')
+
+  def post(self):
+    formset=self.collect_input()
+    formset_lookup=dict(formset)
+    
+    validation_response=self.input_validate(**formset_lookup)
+    errorlist=[]
+
+    if not [item for item in validation_response if not(item[1])]:
+      # If form input is valid
+      username=formset_lookup['username']
+      password=formset_lookup['password']
+
+      c=db.GqlQuery("Select * FROM User WHERE username = '%s'" %username)
+      matchingusers=c.fetch(limit=1)
+      
+      if matchingusers:
+        curr_user=matchingusers[0]
+        match_passhash=curr_user.passhash.split('|')
+        
+        if checkhash(match_passhash[0],username+password,match_passhash[1]):
+          self.makeusercookie(curr_user)
+          self.redirect("/user_reg/welcome")
+        else:
+          errorlist=[("pass_error","Incorrect password")]
+      
+      else:
+        errorlist=[("user_error","Username not found.")]
+   
+    else:
+      # If form input is not valid
+      errorlist=[(item[0],errordict[item[0]]) 
+        for item in validation_response if not(item[1])]
+        
+    outputsubs=formset
+    outputsubs.extend(errorlist)
+    logging.info(outputsubs)
+    output_dict=dict(outputsubs)
+      
+    self.render('form_login.html',**output_dict)
+
+class Logout(Handler):
+    
+  def get(self):
+    self.response.headers.add_header('Set-Cookie', 'userID=; Path=/')
+    self.redirect('/user_reg/signup')
+
 class WelcomeHandler(Handler):
 
   def get(self):
     # logging.info("welcome page!!")
-    ID_cookie=self.request.cookies.get('user_ID').split('|')
-    logging.info(ID_cookie)
-    cookie_userid=ID_cookie[0]
-    cookie_hash=ID_cookie[1]
-
-    if not (checkhash(cookie_hash,cookie_userid,SECRET)):
-      self.redirect("/user_reg/")
+    if self.user:
+        self.render('home.html',user=self.user)
+        cookie=self.request.cookies.get('user_ID')
+        logging.info(cookie)
     else:
-      user=User.get_by_id(int(cookie_userid))    
-      
-      if user:
-        self.response.out.write("Welcome, "+user.username+"!")
-
-      else:
-        self.redirect("/user_reg/")
-
+      self.redirect("/user_reg/signup")
+    
 app = webapp2.WSGIApplication([
+  ('/user_reg/signup', Register),
+  ('/user_reg/login', Login),
+  ('/user_reg/logout', Logout),
   ('/user_reg.?', MainPage),
-  ('/user_reg/signup', MainPage),
   ('/user_reg/welcome.*',WelcomeHandler)
 ], debug=True)

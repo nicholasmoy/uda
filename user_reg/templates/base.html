@@ -4,18 +4,30 @@
   <head>
     <link type="text/css" rel="stylesheet" href="/static/user_reg.css"/>
 
-    <title>Sign Up!</title>
+    <title>NicksBlogs</title>
 
   </head>
 
 
   <body>
     <a href="/user_reg" class="topbanner"> 
-        Sign Up!
+        Account Management
     </a>
+    <table class="control-ribbon">
+      <tr>
+        {% if not user %}
+          <td class="sub-banner"><a href="/user_reg/signup" >Sign Up</a></td>
+          <td class="sub-banner"><a href="/user_reg/login">Log In</a></td>
+        {% else %}
+          <td class="sub-banner"><a href="/user_reg/logout">Log Out</a></td>
+        {% endif %}
+      </tr>
+    </table>
 
     {% block content %}
     {% endblock %}
+
+    <h2 class="status-message">{{statusmessage}}</h2>
 
   </body>
 

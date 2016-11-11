@@ -2,8 +2,8 @@
 
 {% block content %}
 
-  <h2>Signup</h2>
-  <form method="post" action="/user_reg/signup">
+  <h2>Login</h2>
+  <form method="post" action="/user_reg/login">
     <table>
       <tr>
         <td class="label">Username:</td>
@@ -18,20 +18,6 @@
           <input type="password" name="password">
         </td>
         <td class="error">{{pass_error}}</td>
-      </tr>
-      <tr>
-        <td class="label">Verify Password:</td>
-        <td> 
-          <input type="password" name="verify">
-        </td>
-        <td class="error">{{passmatch_error}}</td>
-      </tr>
-      <tr>
-        <td class="label">E-mail (Optional):</td>
-        <td> 
-          <input type="text" name="email" value="{{email}}">
-        </td>
-        <td class="error">{{email_error}}</td>
       </tr>
     </table>
     <input type="submit">

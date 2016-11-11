@@ -2,21 +2,17 @@
 
 {% block content %}
 
-<h2>Previous Blog Posts</h2>
+{% if user %}
 
-{% for blogPost in blogPosts %}
-<div class="post">
-  <div class="post-heading">
-    <div> <a href="/basicblog/{{ blogPost.key().id()|string }}" class="post-title">{{blogPost.title}}</a> </div>
-    <div class="post-time"> Post Submitted On {{blogPost.createdtime}} </div>
-  </div>
-  <div class="post-content">{{blogPost.post}} </div>
-  
-</div>
-{% endfor %}
+	<h2>Your Account</h2>
 
+	<h2 style="color:#FF0000"; margin:0 height:50px>Welcome, {{user.username}}!</h2>
+{% else %}
 
-<h2 style="color:#FF0000"; margin:0 height:50px>{{successmessage}}</h2>
+	<h2>Your Account</h2>
 
+	<h2 margin:0 height:50px>Welcome! Please sign in or register for an account!</h2>
+
+{% endif %}
 
 {% endblock %}
