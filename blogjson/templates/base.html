@@ -1,0 +1,37 @@
+<!DOCTYPE HTML>
+
+<html>
+  <head>
+    <link type="text/css" rel="stylesheet" href="/static/blogjson.css"/>
+
+    <title>NicksBlogs</title>
+
+  </head>
+
+
+  <body>
+    <a href="/blogjson" class="topbanner"> 
+        NicoBloggo
+    </a>
+    <table class="control-ribbon">
+      <tr>
+        {% if not user %}
+          <td class="sub-banner"><a href="/blogjson/signup" >Sign Up</a></td>
+          <td class="sub-banner"><a href="/blogjson/login">Log In</a></td>
+        {% else %}
+          <td class="sub-banner"><a href="/blogjson/welcome">Account Page</a></td>
+          <td class="sub-banner"><a href="/blogjson/logout">Log Out</a></td>
+        {% endif %}
+          <td class="sub-banner"><a href="/blogjson/newpost">New Post</a></td>
+      </tr>
+    </table>
+
+    {% block content %}
+    {% endblock %}
+
+    <h2 class="status-message">{{statusmessage}}</h2>
+
+  </body>
+
+</html>
+

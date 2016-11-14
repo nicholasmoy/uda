@@ -16,6 +16,8 @@ handlers:
   script: workingwithtemplates.main.app
 - url: /basicblog.*
   script: basicblog.main.app
+- url: /blogjson.*
+  script: blogjson.main.app
 
 - url: /.*
   script: not_found.app

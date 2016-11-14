@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{% if post %}
+
+<h2>This is a Unique Page for this Post</h2>
+Post ID: {{post.key().id()|string}}
+
+<hr>
+
+<div class="post">
+  <div class="post-title"> {{post.title}} </div>
+  <div class="post-content">{{post.post}} </div>
+  <div class="post-time"> {{post.createdtime}} </div>
+
+</div>
+{% endif %}
+
+<h2 style="color:#FF0000"; margin:0 height:50px>{{successmessage}}</h2>
+
+
+{% endblock %}
