@@ -4,6 +4,9 @@
 
 
 <h2>Your Previous Blog Posts</h2>
+{% if user %}
+<div>Welcome, {{user.username}}!</div>
+{% endif %}
 
 {% for blogPost in blogPosts %}
 <div class="post">
@@ -16,6 +19,7 @@
 </div>
 {% endfor %}
 
+<div class="footer">Queried {{querylag}} seconds ago</div>
 
 <h2 style="color:#FF0000"; margin:0 height:50px>{{successmessage}}</h2>
 

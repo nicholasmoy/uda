@@ -76,7 +76,11 @@ textarea{
   font-size:12px;
 }
 
-
+.footer {
+  margin-top: 10px;
+  float: right;
+  color:#aaa;
+}
 
 .error {
   color: red;

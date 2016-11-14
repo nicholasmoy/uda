@@ -22,8 +22,9 @@ import hashlib
 import hmac
 from datetime import datetime
 from datetime import timedelta
+import time
 import json
-
+from google.appengine.api import memcache
 
 import jinja2
 import os
@@ -48,8 +49,13 @@ class blogPost(db.Model):
   post = db.TextProperty (required=True)
   createdtime=db.DateTimeProperty(auto_now_add = True)
 
+def blog_Key(name=None):
+  return db.Key.from_path('blog', name or 'default_blog')
+
 # --------------------GLOBAL VARIABLES-----------------------#
 TIMEFORMAT="%a %b %d %H:%M:%S %Y"
+ALLPOSTSKEY="frontposts"
+curr_Blog=blog_Key("blogjson")
 
 USER_RE=re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 PASS_RE=re.compile(r"^.{3,20}$")
@@ -67,7 +73,7 @@ errordict=dict(errorset)
 
 formelements=("username","password","verify","email")
 
-# --------------------Functions-----------------------#
+# --------------------Global Functions-----------------------#
 def escape_html(s):
   return cgi.escape(s,quote=True)
 
@@ -126,16 +132,116 @@ class Handler(webapp2.RequestHandler):
     else:
         self.user=None
          
+  def getpost(self,key=ALLPOSTSKEY):    
+    if memcache.get(key) and memcache.get(key)[0]:
+      (result,timestamp) = memcache.get(key) 
+    else:
+      (result,timestamp) = self.updatepostcache(key)
+    return (result,timestamp)
+
+  def updatepostcache(self,key):
+      if key==ALLPOSTSKEY:
+        result=db.GqlQuery("Select * FROM blogPost "
+          "WHERE ANCESTOR IS :1 "
+          "ORDER BY createdtime DESC",curr_Blog).fetch(10)
+      else:
+        result=blogPost.get_by_id(int(key),parent=curr_Blog)
+      
+      timestamp=time.time()
+      logging.error("setting memcache")
+      memcache.set(key,(result,timestamp))
+
+      return result,timestamp
 
 class MainPage(Handler):
   def render_front(self):
-    blogPosts = db.GqlQuery("Select * FROM blogPost "
-      "ORDER BY createdtime DESC")
-    logging.info(blogPosts)
-    self.render('home.html', blogPosts=blogPosts)
+    blogPosts,cachetime = self.getpost()
+    querylag='{:.1f}'.format(time.time()-cachetime)
+    self.render('home.html', blogPosts=blogPosts,querylag=querylag)
 
   def get(self):
       self.render_front()
+
+class NewPost(Handler):
+    def render_NewPost(self,*a, **kw):
+      self.render('newpost.html',*a, **kw)
+
+    def get (self):
+      self.render_NewPost()
+
+    def post (self):
+      title=self.request.get("subject")
+      post=self.request.get("content")
+
+      errorlist={}
+
+      if not title: errorlist['title_error']="Your blog post needs a Subject Heading!"
+      if not post: errorlist['post_error']="Your blog post needs Contents!"
+
+      if errorlist: 
+        self.render_NewPost(title=title, post=post, **errorlist)
+      else:
+        post=blogPost(parent=curr_Blog, title=title,post=post)
+        post.put()
+        self.updatepostcache(ALLPOSTSKEY)
+        postid=post.key().id()
+        self.redirect('/blogjson/'+str(postid))
+
+class PostHandler(Handler):
+    def render_Post(self,*a, **kw):
+      self.render('existingpost.html',*a, **kw)
+
+    def get (self, **kw):
+      post_id=kw['post_id']
+      post_a,cachetime = self.getpost(post_id)
+      if not post_a:
+        self.render_Post(successmessage="Post not found")
+      else:
+        querylag='{:.1f}'.format(time.time()-cachetime)
+        self.render_Post(post=post_a,querylag=querylag)
+
+class jsonHandler(Handler):
+    def renderjson(self,*posts):
+      if len(posts)==1:
+        post=posts[0]
+        data={"content":post.post,
+          "created":post.createdtime.strftime(TIMEFORMAT),
+          "last_modified":post.createdtime.strftime(TIMEFORMAT),
+          "subject":post.title}
+
+      else:
+        data=[]
+        for post in posts:
+          data.append({"content":post.post,
+            "created":post.createdtime.strftime(TIMEFORMAT),
+            "last_modified":post.createdtime.strftime(TIMEFORMAT),
+            "subject":post.title})
+
+      return json.dumps(data)
+
+    def get (self, **kw):
+      post_id=kw['post_id']
+      self.response.headers['Content-Type'] = 'application/json'
+      if post_id:
+        posts=[blogPost.get_by_id(int(post_id))]
+        jsonout=self.renderjson(*posts)
+      else:
+        posts=blogPost.all().order('-createdtime').fetch(10)
+        posts=list(posts)
+        jsonout=self.renderjson(*posts)
+
+      if posts:
+        self.response.out.write(jsonout)
+      else:
+        self.response.out.write("Content not found")
+
+class ClearCache(Handler):
+
+  def get(self):
+    while True: 
+      result=memcache.flush_all()
+      if result: break
+    self.redirect("/blogjson/")
 
 class Register(Handler):
     
@@ -172,7 +278,7 @@ class Register(Handler):
         curr_user.put()
 
         self.makeusercookie(curr_user)        
-        self.redirect("/user_reg/welcome")
+        self.redirect("/blogjson/welcome")
       
       else:
         errorlist=[("user_error","That user already exists.")]
@@ -218,7 +324,7 @@ class Login(Handler):
         
         if checkhash(match_passhash[0],username+password,match_passhash[1]):
           self.makeusercookie(curr_user)
-          self.redirect("/user_reg/welcome")
+          self.redirect("/blogjson/welcome")
         else:
           errorlist=[("pass_error","Incorrect password")]
       
@@ -241,97 +347,26 @@ class Logout(Handler):
     
   def get(self):
     self.response.headers.add_header('Set-Cookie', 'userID=; Path=/')
-    self.redirect('/user_reg/signup')
+    self.redirect('/blogjson/signup')
 
 class WelcomeHandler(Handler):
 
   def get(self):
-    # logging.info("welcome page!!")
     if self.user:
         self.render('home.html',user=self.user)
         cookie=self.request.cookies.get('user_ID')
     else:
-      self.redirect("/user_reg/signup")
-
-class NewPost(Handler):
-    def render_NewPost(self,*a, **kw):
-      self.render('newpost.html',*a, **kw)
-
-    def get (self):
-      self.render_NewPost()
-
-    def post (self):
-      title=self.request.get("subject")
-      post=self.request.get("content")
-
-      errorlist={}
-
-      if not title: errorlist['title_error']="Your blog post needs a Subject Heading!"
-      if not post: errorlist['post_error']="Your blog post needs Contents!"
-
-      if errorlist: 
-        self.render_NewPost(title=title, post=post, **errorlist)
-      else:
-        post=blogPost(title=title,post=post)
-        post.put()
-        postid=post.key().id()
-        self.redirect('/blogjson/'+str(postid))
-
-class PostHandler(Handler):
-    def render_Post(self,*a, **kw):
-      self.render('existingpost.html',*a, **kw)
-
-    def get (self, **kw):
-      post_id=kw['post_id']
-      post_a = blogPost.get_by_id(int(post_id))
-      if not post_a:
-        self.render_Post(successmessage="Post not found")
-      else:
-        self.render_Post(post=post_a)
-
-class jsonHandler(Handler):
-    def renderjson(self,*posts):
-      if len(posts)==1:
-        post=posts[0]
-        data={"content":post.post,
-          "created":post.createdtime.strftime(TIMEFORMAT),
-          "last_modified":post.createdtime.strftime(TIMEFORMAT),
-          "subject":post.title}
-
-      else:
-        data=[]
-        for post in posts:
-          data.append({"content":post.post,
-            "created":post.createdtime.strftime(TIMEFORMAT),
-            "last_modified":post.createdtime.strftime(TIMEFORMAT),
-            "subject":post.title})
-
-      return json.dumps(data)
-
-    def get (self, **kw):
-      post_id=kw['post_id']
-      self.response.headers['Content-Type'] = 'application/json'
-      if post_id:
-        posts=[blogPost.get_by_id(int(post_id))]
-        jsonout=self.renderjson(*posts)
-      else:
-        posts=blogPost.all().order('-createdtime').fetch(10)
-        posts=list(posts)
-        jsonout=self.renderjson(*posts)
-
-      if posts:
-        self.response.out.write(jsonout)
-      else:
-        self.response.out.write("Content not found")
+      self.redirect("/blogjson/signup")
 
 
 app = webapp2.WSGIApplication([
+  ('/blogjson.?', MainPage),
+  ('/blogjson/newpost.?', NewPost),
+  ('/blogjson/flush.?', ClearCache),
+  webapp2.Route(r'/blogjson/<post_id:\d+>', handler=PostHandler),
+  webapp2.Route(r'/blogjson/<post_id:\d*>.json', handler=jsonHandler),
+  ('/blogjson/welcome.*',WelcomeHandler),
   ('/blogjson/signup', Register),
   ('/blogjson/login', Login),
   ('/blogjson/logout', Logout),
-  ('/blogjson.?', MainPage),
-  ('/blogjson/newpost.?', NewPost),
-  webapp2.Route(r'/blogjson/<post_id:\d+>', handler=PostHandler),
-  webapp2.Route(r'/blogjson/<post_id:\d*>.json', handler=jsonHandler),
-  ('/blogjson/welcome.*',WelcomeHandler)
 ], debug=True)
